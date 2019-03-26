@@ -1,0 +1,67 @@
+<html>
+	<head>
+	<script
+	  src="https://code.jquery.com/jquery-3.3.1.slim.js"
+	  integrity="sha256-fNXJFIlca05BIO2Y5zh1xrShK3ME+/lYZ0j+ChxX2DA="
+	  crossorigin="anonymous"></script>
+	<script src="destinations.js"></script>
+	<script src="origin_cities.js"></script>
+	<script src="origin_countries.js"></script>
+	<script>
+		let body = $('#data');
+
+		function generateDictionary(array, key, value, ...args){
+			let obj = {};
+			array.forEach(item => {
+				if(obj[item[key]] == undefined){ obj[item[key]] = item[value] };
+			});
+			return obj;
+		}
+
+		let usMetDict = generateDictionary(destinations, 'geocode', 'nm');
+		let forMetDict = generateDictionary(originCities, 'geocode', 'nm');
+		let forStateDict = generateDictionary(originCountries, 'geocode', 'country');
+
+
+		const filterData = (country) => {
+			return originCities.map(city =>{
+				return {
+					country: city['country'],
+					city: city['nm'],
+					tot: city['f1tot'],
+					stem: `${Math.round(city['stemshare'] * 100)}%`,
+					ba: `${Math.round(city['bashare'] * 100)}%`,
+					ma: `${Math.round(city['mashare'] * 100)}%`,
+					phd: `${Math.round(city['docshare'] * 100)}%`
+				}
+			}).filter(item => {
+				return item['country'] == country;
+			});
+		};
+
+		function fillSelect(target, list){
+			let options = Object.keys(list).map(key => {
+				return key;
+			});
+			options.forEach(key => {
+				let node = $("<option>");
+				let data = list[key];
+				node.val(key);
+				node.text(data);
+				console.log({target, node});
+				target.append(node);
+			});
+		};
+
+		const selectList = $("#countries");
+
+		fillSelect(selectList, forStateDict);
+	</script>	
+	</head>
+	<form>
+		<select id="countries"></select>
+	</form>
+	<body>
+		<div id="data"></div>
+	</body>
+</html>

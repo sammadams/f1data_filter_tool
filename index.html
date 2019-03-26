@@ -1,0 +1,398 @@
+<html>
+	<head>
+		<title>F1 Data Output</title>
+		<script
+		  src="https://code.jquery.com/jquery-3.3.1.min.js"
+		  integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
+		  crossorigin="anonymous"></script>
+		<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+		<script src="destinations.js"></script>
+		<script src="origin_cities.js"></script>
+		<script src="origin_countries.js"></script>
+		<script src="lists.js"></script>
+		<style>
+			.state-selected{
+				background: rgba(255, 255, 102, 0.5);
+				color: black;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Data Tables</h1>
+		<div class="alert alert-info">
+			<p>Data source: <a href="https://www.brookings.edu/interactives/the-geography-of-foreign-students-in-u-s-higher-education-origins-and-destinations/?keyword=international%20students" class="alert-link">Brookings analysis of data</a> from U.S. Immigration and Customs Enforcement obtained through a Freedom of Information Act (FOIA) Request. All data are aggregates across the 2008-2012 time period.</p>
+		</div>
+		<div class="container">
+			<div class="alert alert-primary" role="alert">
+				<h2>Display table for combined U.S. metro areas</h2>
+			</div>
+			<p>Choose an American metro area and click "Add City". The city will be added to the list below and a table will appear with the total number of students from that area. <strong>You can add more than one metro area to the list.</strong> If more than one city is added, the totals will show the aggregate count for all areas.</p>
+			<form>
+				<p>
+					<select id="us_metro"></select>
+					<button id="add_selector" type="button" class="btn btn-success">Add City</button>
+				</p>
+				<div class="row state-button-row">
+					<button type="button" class="btn btn-secondary" onclick="addStates('PA');buttonSelect(this);">Pennsylvania</button>
+					<button type="button" class="btn btn-secondary" onclick="addStates('DE');buttonSelect(this);">Delaware</button>
+					<button type="button" class="btn btn-secondary" onclick="addStates('MD');buttonSelect(this);">Maryland</button>
+					<button type="button" class="btn btn-secondary" onclick="addStates('NJ');buttonSelect(this);">New Jersey</button>
+					<button type="button" class="btn btn-secondary" onclick="addStates('NY');buttonSelect(this);">New York</button>
+					<button type="button" class="btn btn-secondary" onclick="addStates('VA');buttonSelect(this);">Virginia</button>
+					<button type="button" class="btn btn-secondary" onclick="addStates('MA');buttonSelect(this);">Massachusetts</button>			
+				</div>
+			</form>
+			<form>
+				<h4>Selected U.S. Metro Areas</h4>
+				<button type="button" id="loadButton" class="btn btn-success">Load</button>
+				<button type="button" id="clear" class="btn btn-warning">Reset</button>
+				<ul id="selections"></ul>
+			</form>
+			<table id="main" class="table">
+			</table>
+		</div>
+
+		<div class="container">
+			<div class="alert alert-primary" role="alert">
+				<h2>Display table for countries</h2>
+			</div>
+			<p>Choose a county and click "Select Country". A table will appear with large metro areas and the number of F1 visas from that area.</p>
+			<form>
+				<select id="country_select"></select>
+				<button  id="choose_country" type="button" class="btn btn-success">Select Country</button>
+			</form>
+			<h4 id="majorCitiesHeader">Major cities</h4>
+			<div id="countryStatistics"></div>
+			<table id="country_table" class="table">
+			</table>
+		</div>
+		<span id="what"></span>
+		<span class="typed-cursor"></span>
+	</body>
+	<script>
+		var typer = $("#what");
+		var selectionList = $('#selections');
+		var dataTable = $('#main');
+		var button = $('#add_selector');
+		var countryTable = $("#country_table");
+
+		$.ready(loadSelector($("#us_metro")));
+		$.ready(loadCountrySelector($("#country_select")));
+		button.click(addSelection);
+		$("#loadButton").click(function(){ 
+			loadTable($('#main')) 
+		});
+		$("#choose_country").click(function(){
+			loadCountryTable(countryTable);
+		});
+		$("#clear").click(function(){
+			$("#main").empty();
+			$("#selections").empty();
+			$(".state-button-row").children().removeClass('state-selected');
+		});
+
+		$(document).ready(function () {
+                    typer.typed({
+                        strings: ["change the world.", "start businesses.", "create nonprofits.", "launch products.", "build the next big things.", "make the world a better place."],
+                        typeSpeed: 0,
+                        backDelay: 2500,
+                        loop: true
+                    });
+                });
+            
+
+// ******************************************************
+
+		function numberWithCommas(x) {
+		  return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+		};
+
+		function math(value) { 
+			if(value < 0.01) {
+				return '>1%'
+			} else {
+				return `${ Math.round(value * 100) }%` 
+			};
+		};
+
+		// populate city selector
+		function loadSelector(dom){
+			destinations.forEach(city =>{
+				let option = `<option value=${city.geocode}>${city.nm}</option>`;
+				dom.append(option);
+			});
+		};
+		// add pre-set list of states with regex
+		function addStates(reg){
+			const filterOne = destinations.filter(city => {
+				return city['nm'].includes(reg);
+			});
+			const notSelected = (selection, list) => {
+				const citiesSelected = [...list.children("input")];
+				if(citiesSelected.length < 1) { return true }
+				const option = selection['geocode'];
+				let result = true;
+				citiesSelected.forEach(city => {
+					if(city.value == option) result = false;
+				});
+				return result;
+			};
+			const filterTwo = filterOne.filter(city => {
+				return notSelected(city, selectionList);
+			});
+			filterTwo.forEach(city => {
+				let node = $("<li>").text(city.nm);
+				let nodeInput = `<input type="hidden" value=${city.geocode}></input>`;
+				selectionList.append(node, nodeInput);
+			});
+		};
+
+		// check city list; returns false if match
+		function isNotAlreadySelectedCity(selection, list){
+			let citiesSelected = [...list.children("input")];
+			let option = selection[0].value;
+			let result;
+			if(citiesSelected.length < 1) return true;
+			citiesSelected.forEach(city => {
+				result = city.value == option ? false : true;
+			});
+			return result;
+		};
+
+		// populate city selector list
+		function addCitySelector(source, target){
+			let cityName = source.text();
+			let cityValue = source.val();
+			let li = $('<li>').text(cityName);
+			let input = `<input type="hidden" value=${cityValue}></input>`;
+			target.append(li, input);
+		};
+
+		function addSelection(){
+			let citySelector = $("#us_metro option:selected");
+			if(isNotAlreadySelectedCity(citySelector, $('#selections'))){
+				addCitySelector(citySelector, $('#selections'));
+			} else {
+				alert('You have already chosen this city.');
+			};
+		};
+
+		function filterOriginCities(object, array){
+			return originCities.filter(obj => {
+				array.includes(obj['geocode']);
+			}
+		)};
+
+		// process metro data from selection list
+		function updateMetroData(){
+			// list of US metros
+			let metroMasterObj = masterList['usmet_metros'];
+			// spread DOM nodes to array
+			let selectedList = [...$("#selections input")];
+			// array that contains only geocode values of ul items
+			let selectedCities = [];
+			selectedList.forEach(item => selectedCities.push(item.value));
+
+			let metroSelectedObj = {};
+			selectedCities.forEach(code => {
+				// dictionary set to value 
+				metroSelectedObj[code] = metroMasterObj[code];
+			});
+			return metroSelectedObj;
+		}
+
+		// load table
+		function loadTable(dom){
+			// array of objs of metro data
+			let metros = updateMetroData();
+			let cityListArray = Object.keys(metros).map(function (key) {
+				return metros[key];
+			});
+			let calculatedObj = {};
+			cityListArray.forEach(city => {
+				city.forEach(array => {
+					if(calculatedObj[array.metro] == undefined){
+						calculatedObj[array.metro] = array.f1count;
+					} else {
+						calculatedObj[array.metro] += array.f1count;
+					};
+				});
+			});
+			// flatten object to array with [key, count]
+			let resultArray = Object.keys(calculatedObj).map(function (key) {
+				return {
+					name: key, 
+					count: calculatedObj[key]
+				};
+			});
+			// return sorted array
+			let sortedArray = resultArray.sort(function(a,b) {
+				return b['count'] - a['count'];
+			});
+
+			dom.empty();
+			dom.append('<thead class="thead-light"><tr><th>Country</th><th>Total F1s</th></tr></thead>')
+			sortedArray.forEach(city => {
+				let row = $('<tr>');
+				let cityName = $('<td>').text(city['name']);
+				let count = $('<td>').text(numberWithCommas(city['count']));
+				row.append(cityName);
+				row.append(count);
+				dom.append(row);	
+			});
+		};
+
+		function loadCountryObj(){
+			let countries = {};
+			originCities.forEach(obj => {
+				let geocode = obj['geocode'];
+				let country = obj['country'];
+				let city = obj['nm'];
+				let ba = obj['bashare'];
+				let ma = obj['mashare'];
+				let phd = obj['docshare'];
+				let count = obj['f1tot'];
+				if (countries[country] == undefined) {
+					countries[country] = {};
+					countries[country][geocode] = {geocode, city, count, ba, ma, phd};
+				} else {
+					if(countries[country][geocode] == undefined) {
+						countries[country][geocode] = {geocode, city, count, ba, ma, phd};
+					} else { countries[country][geocode] += count };
+				}
+			});
+			return countries;
+		};
+		// populate dropdown list
+		function loadCountrySelector(dom){
+			let countries = loadCountryObj();
+			let array = Object.keys(countries).map(function(key){
+				return key;
+			}).sort();
+			array.forEach(item => {
+				let node = `<option value="${item}">${item}</option>`;
+				dom.append(node);
+			});
+		}
+
+		function populateCitiesFromCountry(){
+			let selection = $("#country_select option:selected").val();
+			let countries = loadCountryObj();
+			let selected = countries[selection];
+			let mapped = Object.keys(selected).map(function(key){
+				return {
+					name: selected[key].city,
+					count: selected[key].count,
+					ba: selected[key].ba,
+					ma: selected[key].ma,
+					phd: selected[key].phd,
+					geocode: selected[key].geocode
+				};
+			});
+			return mapped.sort((a,b) => b.count - a.count);
+		};
+
+		function createArrayCountryTotals(){
+			let newObj = {};
+			originCountries.forEach(prop =>{
+				let name = prop.country;
+				newObj[name] = prop['f1tot']; 
+			});
+			return newObj;
+		}
+
+		function percentageCityToCountry(name, count){
+			let country = originCountries.filter(obj => {
+				obj['country'] == name;
+			});
+			return country;
+		}
+
+		function loadCountryTable(dom){
+			let countrySelected = $("#country_select option:selected").val();
+			dom.empty();
+			$("#majorCitiesHeader").html(`<h2>${countrySelected}</h2>`);
+			dom.append('<thead class="thead-light"><tr><th>City</th><th>Total Count (% of country)</th><th>Bachelors</th><th>Masters</th><th>Doctoral</th></tr></thead>');
+			let mapped = populateCitiesFromCountry();
+			let pop = grabCountryPop(countrySelected);
+			mapped.forEach(city => {
+				let row = $('<tr class="table-primary">');
+				let cityName = $('<td>').text(city['name']);
+				let count = $('<td>');
+					count.text(`${numberWithCommas(city['count'])} (${math(city['count']/pop)})`);
+				let ba = $('<td>');
+					ba.text(math(city['ba']));
+				let ma = $('<td>');
+					ma.text(math(city['ma']));
+				let phd = $('<td>');
+					phd.text(math(city['phd']));
+				if (city['ba'] > city['ma'] && city['ba'] > city['phd']){
+					ba.css({"background-color": "yellow"});
+				} else if (city['ma'] > city['ba'] && city['ma'] > city['phd']){
+					ma.css({"background-color": "yellow"});
+				} else {phd.css({"background-color": "yellow"})};
+				// add rows to table
+				row.append(cityName);
+				row.append(count);
+				row.append(ba);
+				row.append(ma);
+				row.append(phd);
+				let submetros = $("<tr class='table-secondary'>");
+				// empty cell
+				submetros.append($("<td>"));
+				let cellHtml = printTopMetros(city['geocode']);
+				submetros.append($("<td>").html(cellHtml));
+				dom.append(row);
+				dom.append(submetros);	
+			});
+			printCountryStats($("#country_select option:selected").val(), $("#countryStatistics"));
+		}
+
+		function printTopMetros(geocode){
+			let arr = masterList['formet_metros'][geocode];
+			let result = arr.map(metro => {
+				return `${numberWithCommas(metro.f1count)}: ${metro.CBSA_Title}`;
+			});
+			let node = $("<ul>");
+			result.forEach(item => 
+				node.append($('<li>').text(item))
+				);
+			return node;
+		};
+
+		function grabCountryPop(countryName){
+			let result = originCountries.filter(country => {
+				return country['country'] == countryName;
+			});
+			if(result.length < 1) return;
+			return result[0]['f1tot'];
+		};
+		
+		function printCountryStats(selectionText, target){
+			target.empty();
+			let result = originCountries.filter(country => {
+				return country['country'] == selectionText;
+			});
+			if(result.length < 1) {
+				target.append($("<p>").text("Cannot process results").addClass("alert alert-danger"));
+				return;
+			};
+			let f1tot = result[0]['f1tot'];
+			let stem = math(result[0]['stemshare']);
+			let ba = math(result[0]['bashare']);
+			let ma = math(result[0]['mashare']);
+			let phd = math(result[0]['docshare']);
+			let list = $("<ul>");
+			list.append($("<li>").text(`Total F1 students: ${ numberWithCommas(f1tot) }`));
+			list.append($("<li>").text(`Percentage of F1s in STEM field: ${stem}`));
+			list.append($("<li>").text(`Percentage of undergraduates: ${ba}`));
+			list.append($("<li>").text(`Percentage of graduates: ${ma}`));
+			list.append($("<li>").text(`Percentages of doctoral: ${phd}`));
+			target.append(list);
+		};
+
+		function buttonSelect(e){
+			$(e).addClass('state-selected');
+		};
+	</script>
+</html>
